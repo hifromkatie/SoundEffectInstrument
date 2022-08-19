@@ -65,6 +65,8 @@ void Error_Handler(void);
 #define DFSDM_DATIN3_GPIO_Port GPIOE
 #define A0_Pin GPIO_PIN_0
 #define A0_GPIO_Port GPIOF
+#define Screen3CS_Pin GPIO_PIN_3
+#define Screen3CS_GPIO_Port GPIOF
 #define LCD_BLCTRL_Pin GPIO_PIN_5
 #define LCD_BLCTRL_GPIO_Port GPIOF
 #define QSPI_BK1_IO3_Pin GPIO_PIN_6
@@ -75,6 +77,8 @@ void Error_Handler(void);
 #define QSPI_BK1_IO0_GPIO_Port GPIOF
 #define QSPI_BK1_IO1_Pin GPIO_PIN_9
 #define QSPI_BK1_IO1_GPIO_Port GPIOF
+#define E1Sel_Pin GPIO_PIN_10
+#define E1Sel_GPIO_Port GPIOF
 #define STLK_MCO_Pin GPIO_PIN_0
 #define STLK_MCO_GPIO_Port GPIOH
 #define DFSDM_CKOUT_Pin GPIO_PIN_2
@@ -89,6 +93,8 @@ void Error_Handler(void);
 #define CODEC_I2S3_WS_GPIO_Port GPIOA
 #define ScreenDC_Pin GPIO_PIN_6
 #define ScreenDC_GPIO_Port GPIOA
+#define E3Sel_Pin GPIO_PIN_4
+#define E3Sel_GPIO_Port GPIOC
 #define DFSDM_DATIN0_Pin GPIO_PIN_1
 #define DFSDM_DATIN0_GPIO_Port GPIOB
 #define QSPI_CLK_Pin GPIO_PIN_2
@@ -153,6 +159,8 @@ void Error_Handler(void);
 #define USB_OTGFS_OVRCR_GPIO_Port GPIOG
 #define USB_OTGFS_PPWR_EN_Pin GPIO_PIN_8
 #define USB_OTGFS_PPWR_EN_GPIO_Port GPIOG
+#define AmpSHDN_Pin GPIO_PIN_6
+#define AmpSHDN_GPIO_Port GPIOC
 #define CODEC_I2S3_MCK_Pin GPIO_PIN_7
 #define CODEC_I2S3_MCK_GPIO_Port GPIOC
 #define uSD_D0_Pin GPIO_PIN_8
@@ -195,6 +203,16 @@ void Error_Handler(void);
 #define FMC_NWE_GPIO_Port GPIOD
 #define FMC_NE1_Pin GPIO_PIN_7
 #define FMC_NE1_GPIO_Port GPIOD
+#define BUTTON1_Pin GPIO_PIN_9
+#define BUTTON1_GPIO_Port GPIOG
+#define Screen1CS_Pin GPIO_PIN_10
+#define Screen1CS_GPIO_Port GPIOG
+#define Screen2CS_Pin GPIO_PIN_11
+#define Screen2CS_GPIO_Port GPIOG
+#define E2Sel_Pin GPIO_PIN_12
+#define E2Sel_GPIO_Port GPIOG
+#define E4Sel_Pin GPIO_PIN_13
+#define E4Sel_GPIO_Port GPIOG
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
 #define CODEC_I2S3ext_SD_Pin GPIO_PIN_4
@@ -214,6 +232,26 @@ void Error_Handler(void);
 #define LED2_Pin GPIO_PIN_1
 #define LED2_GPIO_Port GPIOE
 /* USER CODE BEGIN Private defines */
+
+/* Defines for the Audio playing process */
+#define PAUSE_STATUS     ((uint32_t)0x00) /* Audio Player in Pause Status */
+#define RESUME_STATUS    ((uint32_t)0x01) /* Audio Player in Resume Status */
+#define IDLE_STATUS      ((uint32_t)0x02) /* Audio Player in Idle Status */
+
+#define REPEAT_ON        ((uint32_t)0x00) /* Replay Status in ON */
+#define REPEAT_OFF       ((uint32_t)0x01) /* Replay Status in OFF */
+
+/* You can change the Wave file name as you need, but do not exceed 11 characters */
+#define WAVE_NAME "0:audio_sample.wav"
+#define REC_WAVE_NAME "0:rec.wav"
+
+/* Defines for the Audio used commands */
+#define CMD_PLAY           ((uint32_t)0x00)
+#define CMD_RECORD         ((uint32_t)0x01)
+#define CMD_STOP           ((uint32_t)0x02)
+
+
+#define MAX9744_I2CADDR 0x4B
 
 /* USER CODE END Private defines */
 

@@ -19,11 +19,13 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "fatfs.h"
 #include "usb_host.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "ssd1306.h"
+#include "stm32412g_discovery_audio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,10 +47,12 @@ I2C_HandleTypeDef hi2c1;
 I2C_HandleTypeDef hi2c2;
 
 I2S_HandleTypeDef hi2s3;
+DMA_HandleTypeDef hdma_spi3_tx;
 
 QSPI_HandleTypeDef hqspi;
 
 SD_HandleTypeDef hsd;
+DMA_HandleTypeDef hdma_sdio;
 
 SPI_HandleTypeDef hspi1;
 
@@ -59,11 +63,21 @@ SRAM_HandleTypeDef hsram1;
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 
+/* Wave Player Pause/Resume Status. Defined as external in waveplayer.c file */
+__IO uint32_t PauseResumeStatus = IDLE_STATUS;   
+/* Re-play Wave file status on/off.
+   Defined as external in waveplayer.c file */
+__IO uint32_t RepeatState = REPEAT_ON;
+
+__IO uint32_t CmdIndex = CMD_PLAY;
+
+__IO uint32_t WaveRecStatus = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_FSMC_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_I2C2_Init(void);
@@ -111,6 +125,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_FSMC_Init();
   MX_I2C1_Init();
   MX_I2C2_Init();
@@ -119,6 +134,7 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_USART2_UART_Init();
   MX_SPI1_Init();
+  MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -141,7 +157,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 1024);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -371,14 +387,6 @@ static void MX_SDIO_SD_Init(void)
   hsd.Init.BusWide = SDIO_BUS_WIDE_1B;
   hsd.Init.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
   hsd.Init.ClockDiv = 0;
-  if (HAL_SD_Init(&hsd) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_SD_ConfigWideBusOperation(&hsd, SDIO_BUS_WIDE_4B) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN SDIO_Init 2 */
 
   /* USER CODE END SDIO_Init 2 */
@@ -457,6 +465,26 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA2_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
+  /* DMA2_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream3_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -479,7 +507,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOE, LED3_Pin|LED4_Pin|LED1_Pin|LED2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOF, LCD_BLCTRL_Pin|EXT_RESET_Pin|CTP_RST_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOF, Screen3CS_Pin|LCD_BLCTRL_Pin|EXT_RESET_Pin|CTP_RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(ScreenDC_GPIO_Port, ScreenDC_Pin, GPIO_PIN_RESET);
@@ -491,7 +519,13 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(USB_OTGFS_PPWR_EN_GPIO_Port, USB_OTGFS_PPWR_EN_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(AmpSHDN_GPIO_Port, AmpSHDN_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(ScreenCS_GPIO_Port, ScreenCS_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOG, Screen1CS_Pin|Screen2CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(ScreenRST_GPIO_Port, ScreenRST_Pin, GPIO_PIN_RESET);
@@ -511,12 +545,25 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF8_DFSDM1;
   HAL_GPIO_Init(DFSDM_DATIN3_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : Screen3CS_Pin */
+  GPIO_InitStruct.Pin = Screen3CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(Screen3CS_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pins : LCD_BLCTRL_Pin EXT_RESET_Pin CTP_RST_Pin */
   GPIO_InitStruct.Pin = LCD_BLCTRL_Pin|EXT_RESET_Pin|CTP_RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : E1Sel_Pin */
+  GPIO_InitStruct.Pin = E1Sel_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(E1Sel_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : DFSDM_CKOUT_Pin */
   GPIO_InitStruct.Pin = DFSDM_CKOUT_Pin;
@@ -538,6 +585,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : E3Sel_Pin */
+  GPIO_InitStruct.Pin = E3Sel_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(E3Sel_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : DFSDM_DATIN0_Pin */
   GPIO_InitStruct.Pin = DFSDM_DATIN0_Pin;
@@ -587,6 +640,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(USB_OTGFS_PPWR_EN_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : AmpSHDN_Pin */
+  GPIO_InitStruct.Pin = AmpSHDN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(AmpSHDN_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : M2_CKINA8_Pin */
   GPIO_InitStruct.Pin = M2_CKINA8_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -600,6 +660,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(uSD_DETECT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : BUTTON1_Pin E2Sel_Pin E4Sel_Pin */
+  GPIO_InitStruct.Pin = BUTTON1_Pin|E2Sel_Pin|E4Sel_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : Screen1CS_Pin Screen2CS_Pin */
+  GPIO_InitStruct.Pin = Screen1CS_Pin|Screen2CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
 
   /*Configure GPIO pin : ScreenRST_Pin */
   GPIO_InitStruct.Pin = ScreenRST_Pin;
@@ -665,13 +738,21 @@ static void MX_FSMC_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-GPIO_TypeDef *CSPorts[] = {
+const GPIO_TypeDef *CSPorts[] = {
   ScreenCS_GPIO_Port,
+  Screen1CS_GPIO_Port,
+  Screen2CS_GPIO_Port,
+  Screen3CS_GPIO_Port
 };
 
-uint16_t CSPins[] = {
-  ScreenCS_Pin
+const uint16_t CSPins[] = {
+  ScreenCS_Pin,
+  Screen1CS_Pin,
+  Screen2CS_Pin,
+  Screen3CS_Pin
 };
+
+const int ScreenCount = sizeof(CSPins)/sizeof(uint16_t);
 
 void oled_write_cmd (int screen, uint8_t comms){
   uint8_t dummy;
@@ -689,12 +770,12 @@ void oled_write_data (int screen, uint8_t comms){
   HAL_GPIO_WritePin(CSPorts[screen],CSPins[screen],GPIO_PIN_SET);
 }
 
-void Midas_Screen_Init(int count)
+void Midas_Screen_Init(void)
 {
   HAL_GPIO_WritePin(ScreenRST_GPIO_Port, ScreenRST_Pin, GPIO_PIN_RESET);
   vTaskDelay(10);
   HAL_GPIO_WritePin(ScreenRST_GPIO_Port, ScreenRST_Pin, GPIO_PIN_SET);
-  for (int i=0; i<count; i++)
+  for (int i=0; i<ScreenCount; i++)
   {
     oled_write_cmd(i,0xae);   // display off
     
@@ -738,7 +819,7 @@ void Midas_Screen_Init(int count)
   vTaskDelay(100);
 
   for(int k=0;k<4;k++)
-{
+  {
     for(int i=0;i<16;i++)
     {
         for(int j=0;j<8;j++)
@@ -746,10 +827,30 @@ void Midas_Screen_Init(int count)
             oled_write_data(0,(0x8080 >> i) & 0xff);
         }
     }
-}
+  }
   }
 
 }
+/*
+void oled_display_write (uint8_t activeScreen){
+  for (int i=0; i<ScreenCount; i++)
+  {
+    printf("Item %d = %s\r\n",i, effectsList[i]);
+    printf("Active screen is: %d",activeScreen);
+    ssd1306_Fill(i, Black);
+    ssd1306_SetCursor(i, 0, 0);
+    ssd1306_WriteString(i, effectsList[i], Font_11x18, White);
+    ssd1306_UpdateScreen(i);
+  }
+}
+*/
+//function to send printf to uart for serial debugging
+int __io_putchar(int ch)
+{
+  HAL_UART_Transmit(&huart2,&ch,1, 0xffff);
+}
+
+  FATFS fs;
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -761,16 +862,160 @@ void Midas_Screen_Init(int count)
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-  static int ScreenCount = 1;
   /* init code for USB_HOST */
   MX_USB_HOST_Init();
   /* USER CODE BEGIN 5 */
-  Midas_Screen_Init(ScreenCount);
+  char effectsList[4][32];
+  //Midas_Screen_Init();
+  ssd1306_Reset(0);
+  HAL_Delay(100);
+  for(int i=0;i<ScreenCount;i++)
+  {
+    ssd1306_Init(i);
+  }
+  DIR dp;
+  FILINFO fno;
+
+  uint8_t volume = 63;
+  printf("Setting up I2C to Amplifier \r\n");
+  printf("I2C tx = %d\r\n", HAL_I2C_Master_Transmit(&hi2c1,0x96,&volume,1,0xffff));
+
+
+  printf("There are %d screens connected\r\n",ScreenCount);
+  printf("about to start SD card\r\n");
+  printf ("Mount = %d\r\n",f_mount(&fs,"",1));
+  printf("open dir = %d\r\n",f_opendir(&dp,"/"));
+  int8_t itemsCount = 0;
+  while (1) 
+  {
+    f_readdir(&dp,&fno);
+    if (fno.fname[0] == 0)
+    {
+      break;
+    }
+    if (itemsCount<=ScreenCount)
+    {
+      printf("%s\r\n",fno.fname);
+      char tempFile[32];
+      strncpy(tempFile,fno.fname,31);
+      printf("First character of file %c\r\n",tempFile[0]);
+      
+      //strncpy(effectsList[itemsCount],fno.fname,31);
+      if (tempFile[0]!='.')
+      {
+        if (strcmp(&tempFile[strlen(tempFile)-4],".wav") == 0)
+          {
+            strncpy(effectsList[itemsCount],tempFile,31);
+            printf("%s\r\n",effectsList[itemsCount]);
+            itemsCount++;
+          }
+        
+
+      } else {
+        printf("ignoring file due to hidden %s\r\n",fno.fname);
+      }
+
+
+
+    }else{
+      printf("ignoring file %s\r\n",fno.fname);
+    }
+    
+  }
+
+
+  //oled_display_write(0);
+
+  int8_t activeSound = 0;
+
+  for (int i=0; i<=ScreenCount; i++)
+  {
+    if (i==activeSound)
+    {
+      printf("Item %d = %s\r\n",i, effectsList[i]);
+      printf("active screen is: %d", activeSound);
+      ssd1306_Fill(i, White);
+      ssd1306_SetCursor(i, 0, 0);
+      ssd1306_WriteString(i, effectsList[i], Font_11x18, Black);
+      ssd1306_UpdateScreen(i);
+    }else{
+      printf("Item %d = %s\r\n",i, effectsList[i]);
+      printf("active screen is: %d", activeSound);
+      ssd1306_Fill(i, Black);
+      ssd1306_SetCursor(i, 0, 0);
+      ssd1306_WriteString(i, effectsList[i], Font_11x18, White);
+      ssd1306_UpdateScreen(i);
+    }
+    
+   
+  }
+  
+
+  //printf("Start WavePlayer\r\n");
+  //WavePlayerStart("phone.wav");
+
+
   /* Infinite loop */
   for(;;)
   {
-    HAL_GPIO_TogglePin(LED2_GPIO_Port,LED2_Pin);
-    osDelay(1000);
+    int8_t dispChange = 0;
+    if (HAL_GPIO_ReadPin(E1Sel_GPIO_Port,E1Sel_Pin) == 0)
+    {
+      activeSound = 0;
+      printf("Active Sound is 0");
+      dispChange = 1;
+    }
+    else if (HAL_GPIO_ReadPin(E2Sel_GPIO_Port,E2Sel_Pin) == 0)
+    {
+      activeSound = 1;
+      printf("Active Sound is 1");
+      dispChange = 1;
+    }
+    else if (HAL_GPIO_ReadPin(E3Sel_GPIO_Port,E3Sel_Pin) == 0)
+    {
+      activeSound = 2;
+      printf("Active Sound is 2");
+      dispChange = 1;
+    }
+    else if (HAL_GPIO_ReadPin(E4Sel_GPIO_Port,E4Sel_Pin) == 0)
+    {
+      activeSound = 3;
+      printf("Active Sound is 3");
+      dispChange = 1;
+    }
+
+    if (dispChange == 1)
+    {
+      for (int i=0; i<=ScreenCount; i++)
+      {
+      if (i==activeSound)
+        {
+        printf("Item %d = %s\r\n",i, effectsList[i]);
+        printf("active screen is: %d", activeSound);
+        ssd1306_Fill(i, White);
+        ssd1306_SetCursor(i, 0, 0);
+        ssd1306_WriteString(i, effectsList[i], Font_11x18, Black);
+        ssd1306_UpdateScreen(i);
+        }else{
+        printf("Item %d = %s\r\n",i, effectsList[i]);
+        printf("active screen is: %d", activeSound);
+        ssd1306_Fill(i, Black);
+        ssd1306_SetCursor(i, 0, 0);
+        ssd1306_WriteString(i, effectsList[i], Font_11x18, White);
+        ssd1306_UpdateScreen(i);
+        } 
+      }
+      dispChange = 0;
+    }
+    
+    if (HAL_GPIO_ReadPin(BUTTON1_GPIO_Port,BUTTON1_Pin) == 0)
+    {
+      HAL_GPIO_WritePin(AmpSHDN_GPIO_Port,AmpSHDN_Pin, GPIO_PIN_SET);
+      WavePlayerStart(effectsList[activeSound]);
+      HAL_GPIO_WritePin(AmpSHDN_GPIO_Port,AmpSHDN_Pin, GPIO_PIN_RESET);
+
+
+    }
   }
   /* USER CODE END 5 */
 }

@@ -36,12 +36,18 @@ BUILD_DIR = build
 ######################################
 # C sources
 C_SOURCES =  \
+Core/Components/wm8994/wm8994.c \
 Core/Src/freertos.c \
 Core/Src/main.c \
+Core/Src/stm32412g_discovery.c \
+Core/Src/stm32412g_discovery_audio.c \
 Core/Src/stm32f4xx_hal_msp.c \
 Core/Src/stm32f4xx_hal_timebase_tim.c \
 Core/Src/stm32f4xx_it.c \
+Core/Src/syscalls.c \
+Core/Src/sysmem.c \
 Core/Src/system_stm32f4xx.c \
+Core/Src/waveplayer.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_dma.c \
@@ -70,11 +76,20 @@ Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_fsmc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_sdmmc.c \
 Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_ll_usb.c \
+FATFS/App/fatfs.c \
+FATFS/Target/bsp_driver_sd.c \
+FATFS/Target/fatfs_platform.c \
+FATFS/Target/sd_diskio.c \
 Middlewares/ST/STM32_USB_Host_Library/Class/CDC/Src/usbh_cdc.c \
 Middlewares/ST/STM32_USB_Host_Library/Core/Src/usbh_core.c \
 Middlewares/ST/STM32_USB_Host_Library/Core/Src/usbh_ctlreq.c \
 Middlewares/ST/STM32_USB_Host_Library/Core/Src/usbh_ioreq.c \
 Middlewares/ST/STM32_USB_Host_Library/Core/Src/usbh_pipes.c \
+Middlewares/Third_Party/FatFs/src/diskio.c \
+Middlewares/Third_Party/FatFs/src/ff.c \
+Middlewares/Third_Party/FatFs/src/ff_gen_drv.c \
+Middlewares/Third_Party/FatFs/src/option/ccsbcs.c \
+Middlewares/Third_Party/FatFs/src/option/syscall.c \
 Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.c \
 Middlewares/Third_Party/FreeRTOS/Source/croutine.c \
 Middlewares/Third_Party/FreeRTOS/Source/event_groups.c \
@@ -85,6 +100,8 @@ Middlewares/Third_Party/FreeRTOS/Source/queue.c \
 Middlewares/Third_Party/FreeRTOS/Source/stream_buffer.c \
 Middlewares/Third_Party/FreeRTOS/Source/tasks.c \
 Middlewares/Third_Party/FreeRTOS/Source/timers.c \
+Middlewares/Third_Party/STM32-SSD1306/ssd1306/ssd1306.c \
+Middlewares/Third_Party/STM32-SSD1306/ssd1306/ssd1306_fonts.c \
 USB_HOST/App/usb_host.c \
 USB_HOST/Target/usbh_conf.c \
 USB_HOST/Target/usbh_platform.c
@@ -159,16 +176,21 @@ AS_INCLUDES = \
 
 # C includes
 C_INCLUDES =  \
+-ICore/Components/wm8994 \
 -ICore/Inc \
 -IDrivers/CMSIS/Device/ST/STM32F4xx/Include \
 -IDrivers/CMSIS/Include \
 -IDrivers/STM32F4xx_HAL_Driver/Inc \
 -IDrivers/STM32F4xx_HAL_Driver/Inc/Legacy \
+-IFATFS/App \
+-IFATFS/Target \
 -IMiddlewares/ST/STM32_USB_Host_Library/Class/CDC/Inc \
 -IMiddlewares/ST/STM32_USB_Host_Library/Core/Inc \
+-IMiddlewares/Third_Party/FatFs/src \
 -IMiddlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS \
 -IMiddlewares/Third_Party/FreeRTOS/Source/include \
 -IMiddlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F \
+-IMiddlewares/Third_Party/STM32-SSD1306/ssd1306 \
 -IUSB_HOST/App \
 -IUSB_HOST/Target
 
